@@ -15,9 +15,10 @@
     - dart::bin::DFE::Init (sdk/runtime/bin/dfe.cc)
       - dart::bin::DFE::InitKernelServiceAndPlatformDills (sdk/runtime/bin/dfe.cc)
         将 dart::bin::DFE::frontend_filename_ 设置为: 
-        * out/dart-sdk/lib/_internal/abiversions/$target_abi_version/kernel_service.dill.
+        * out/dart-sdk/lib/_internal/abiversions/$target_abi_version/kernel_service.dill,
         或
-        * out/dart-sdk/bin/snapshots/kernel-service.dart.snapshot, 这个文件运行 sdk/utils/kernel-service/BUILD.gn 调用 kernel_service.dill 训练生成的.
+        * out/dart-sdk/bin/snapshots/kernel-service.dart.snapshot.
+        这个文件由 sdk/utils/kernel-service/BUILD.gn 生成, kernel-service.dart.snapshot 是调用 kernel_service.dill 训练生成的, 而 kernel_service.dill 由 sdk/pkg/vm/bin/kernel_service.dart 编译而成.
 
   ```c++
     // Initialize the Dart VM.
@@ -49,4 +50,28 @@
         bool task_started = Dart::thread_pool()->Run(new RunKernelTask());
         ```
           - dart::RunKernelTask::Run (sdk/runtime/vm/kernel_isolate.cc)
+            ```c++
+            Dart_IsolateCreateCallback create_callback =
+            KernelIsolate::create_callback();
+            ...
+            isolate = reinterpret_cast<Isolate*>(
+            create_callback(KernelIsolate::kName, KernelIsolate::kName, NULL, NULL,
+                            &api_flags, NULL, &error));
+            ```
+            - dart::bin::CreateIsolateAndSetup (sdk/runtime/bin/main.cc)
+              - dart::bin::CreateAndSetupKernelIsolate (sdk/runtime/bin/main.cc)
+                ```c++
+                const char* kernel_snapshot_uri = dfe.frontend_filename();
+                ```
+                用 kernel-service.dart.snapshot 或 kernel_service.dill 创建 Kernel isolate.
+
+          ```c++
+          {
+            ...
+            StartIsolateScope start_scope(isolate);
+            got_unwind = RunMain(isolate);
+          }
+          ```
+            - dart::RunKernelTask::RunMain (sdk/runtime/vm/kernel_isolate.cc)
+            运行 sdk/pkg/vm/bin/kernel_service.dart 的 main 函数.
 
