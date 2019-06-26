@@ -16,6 +16,7 @@
       - dart::bin::DFE::InitKernelServiceAndPlatformDills (sdk/runtime/bin/dfe.cc)
         将 dart::bin::DFE::frontend_filename_ 设置为: 
         * out/dart-sdk/lib/_internal/abiversions/$target_abi_version/kernel_service.dill.
+        或
         * out/dart-sdk/bin/snapshots/kernel-service.dart.snapshot, 这个文件运行 sdk/utils/kernel-service/BUILD.gn 调用 kernel_service.dill 训练生成的.
 
   ```c++
