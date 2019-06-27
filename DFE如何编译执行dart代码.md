@@ -45,6 +45,13 @@
                         params->start_kernel_isolate);
         ```
       - dart::Dart::Init (sdk/runtime/vm/dart.cc)
+        ```c++
+        #ifndef DART_PRECOMPILED_RUNTIME
+          if (start_kernel_isolate) {
+            KernelIsolate::Run();
+          }
+        #endif  // DART_PRECOMPILED_RUNTIME
+        ```
         - dart::KernelIsolate::Run (sdk/runtime/vm/kernel_isolate.cc)
           ```c++
           bool task_started = Dart::thread_pool()->Run(new RunKernelTask());
@@ -73,5 +80,21 @@
             }
             ```
             - dart::RunKernelTask::RunMain (sdk/runtime/vm/kernel_isolate.cc)
-            运行 sdk/pkg/vm/bin/kernel_service.dart 的 main 函数.
+            运行 sdk/pkg/vm/bin/kernel_service.dart 的 main 函数, 并将该函数返回的通讯端口记录到 dart::KernelIsolate::kernel_port_.
+              ```c++
+              const String& entry_name = String::Handle(Z, String::New("main"));
+              ...
+              const Function& entry = Function::Handle(
+                  Z, root_library.LookupFunctionAllowPrivate(entry_name));
+              ...
+              const Object& result = Object::Handle(
+                  Z, DartEntry::InvokeFunction(entry, Object::empty_array()));
+              ...
+              const ReceivePort& rp = ReceivePort::Cast(result);
+              KernelIsolate::SetLoadPort(rp.Id());
+              ```
+              - main (sdk/pkg/vm/bin/kernel_service.dart)
+                ```dart
+                return new RawReceivePort()..handler = _processLoadRequest;
+                ```
 
