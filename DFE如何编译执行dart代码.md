@@ -98,7 +98,7 @@
                 return new RawReceivePort()..handler = _processLoadRequest;
                 ```
 
-2. 提交 dart 代码给 kernel-serive 编译, 并装载运行:
+2. 提交 dart 文件给 kernel-serive 编译成 kernel 二进制结果, 并装载运行:
 
 - main (sdk/runtime/bin/main.cc)
   - dart::bin::main (sdk/runtime/bin/main.cc)
@@ -191,6 +191,8 @@
                     ```c++
                       return kernel_port_;
                     ```
+    - dart::bin::RunMainIsolate (sdk/runtime/bin/main.cc)
+    调用 dart:isolate 的 _startMainIsolate 函数运行已编译并装载的 dart 文件的 main 函数.
       ```c++
       ...
         Dart_EnterIsolate(isolate);
