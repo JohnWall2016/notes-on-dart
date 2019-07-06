@@ -98,3 +98,80 @@
                 return new RawReceivePort()..handler = _processLoadRequest;
                 ```
 
+2. 提交 dart 代码给 kernel-serive 编译:
+
+- main (sdk/runtime/bin/main.cc)
+  - dart::bin::main (sdk/runtime/bin/main.cc)
+    ```c++
+    ...
+    #if !defined(DART_PRECOMPILED_RUNTIME)
+        dfe.Init(Options::target_abi_version());
+        ...
+    #endif
+    ...
+        error = Dart_Initialize(&init_params);
+    ...
+      // Run the main isolate until we aren't told to restart.
+      while (RunMainIsolate(script_name, &dart_options)) {
+        Syslog::PrintErr("Restarting VM\n");
+      }
+    ```
+    - dart::bin::RunMainIsolate (sdk/runtime/bin/main.cc)
+      ```c++
+      ...
+        Dart_Isolate isolate = CreateIsolateAndSetupHelper(
+      is_main_isolate, script_name, "main", Options::package_root(),
+      Options::packages_file(), &flags, NULL /* callback_data */, &error,
+      &exit_code);
+      ```
+      - dart::bin::CreateIsolateAndSetupHelper (sdk/runtime/bin/main.cc)
+        ```c++
+        ...
+            created_isolate = IsolateSetupHelper(
+        isolate, is_main_isolate, script_uri, package_root, packages_config,
+        isolate_run_app_snapshot, flags, error, exit_code);
+        ```
+        - dart::bin::IsolateSetupHelper (sdk/runtime/bin/main.cc)
+          ```c++
+          ...
+              uint8_t* application_kernel_buffer = NULL;
+              intptr_t application_kernel_buffer_size = 0;
+              dfe.CompileAndReadScript(script_uri, &application_kernel_buffer,
+                                      &application_kernel_buffer_size, error, exit_code,
+                                      resolved_packages_config);
+          ```
+          - DFE::CompileAndReadScript (sdk/runtime/bin/dfe.cc)
+            ```c++
+              Dart_KernelCompilationResult result =
+                  CompileScript(script_uri, use_incremental_compiler(), package_config);
+            ```
+            - DFE::CompileScript (sdk/runtime/bin/dfe.cc)
+              ```c++
+                return Dart_CompileToKernel(sanitized_uri, platform_strong_dill_,
+                                            platform_strong_dill_size_, incremental,
+                                            package_config);
+              ```
+              - dart::Dart_CompileToKernel (sdk/runtime/vm/dart_api_impl.cc)
+                ```c++
+                  result = KernelIsolate::CompileToKernel(script_uri, platform_kernel,
+                                                          platform_kernel_size, 0, NULL,
+                                                          incremental_compile, package_config);
+                ```
+                - KernelIsolate::CompileToKernel (sdk/runtime/vm/kernel_isolate.cc)
+                  ```c++
+                    Dart_Port kernel_port = WaitForKernelPort();
+                    ...
+                      KernelCompilationRequest request;
+                      return request.SendAndWaitForResponse(
+                          kCompileTag, kernel_port, script_uri, platform_kernel,
+                          platform_kernel_size, source_file_count, source_files,
+                          incremental_compile, package_config, multiroot_filepaths,
+                          multiroot_scheme, experimental_flags_);
+                  ```
+                  - KernelIsolate::WaitForKernelPort (sdk/runtime/vm/kernel_isolate.cc)
+                  详见第 1 部分 kernel-service 启动时如何设置 dart::KernelIsolate::kernel_port_ 通信端口的.
+                    ```c++
+                      return kernel_port_;
+                    ```
+
+
