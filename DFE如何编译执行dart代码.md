@@ -126,12 +126,13 @@
       &exit_code);
       ```
       - dart::bin::CreateIsolateAndSetupHelper (sdk/runtime/bin/main.cc)
+      创建 isolate 并使其成为当前 isolate; 调用启动帮助函数编译装载代码.
         ```c++
         ...
             isolate = Dart_CreateIsolate(
         script_uri, name, isolate_snapshot_data, isolate_snapshot_instructions,
         app_isolate_shared_data, app_isolate_shared_instructions, flags,
-        isolate_data, error); // Creates a new isolate. The new isolate becomes the current isolate.
+        isolate_data, error);
         ...
             created_isolate = IsolateSetupHelper(
         isolate, is_main_isolate, script_uri, package_root, packages_config,
