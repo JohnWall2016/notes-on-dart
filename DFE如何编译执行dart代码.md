@@ -98,7 +98,7 @@
                 return new RawReceivePort()..handler = _processLoadRequest;
                 ```
 
-2. 提交 dart 代码给 kernel-serive 编译:
+2. 提交 dart 代码给 kernel-serive 编译, 并装载运行:
 
 - main (sdk/runtime/bin/main.cc)
   - dart::bin::main (sdk/runtime/bin/main.cc)
@@ -117,6 +117,7 @@
       }
     ```
     - dart::bin::RunMainIsolate (sdk/runtime/bin/main.cc)
+    提交 dart 代码给 kernel-serive 编译并装载到 isolate 中.
       ```c++
       ...
         Dart_Isolate isolate = CreateIsolateAndSetupHelper(
@@ -127,11 +128,17 @@
       - dart::bin::CreateIsolateAndSetupHelper (sdk/runtime/bin/main.cc)
         ```c++
         ...
+            isolate = Dart_CreateIsolate(
+        script_uri, name, isolate_snapshot_data, isolate_snapshot_instructions,
+        app_isolate_shared_data, app_isolate_shared_instructions, flags,
+        isolate_data, error); // Creates a new isolate. The new isolate becomes the current isolate.
+        ...
             created_isolate = IsolateSetupHelper(
         isolate, is_main_isolate, script_uri, package_root, packages_config,
         isolate_run_app_snapshot, flags, error, exit_code);
         ```
         - dart::bin::IsolateSetupHelper (sdk/runtime/bin/main.cc)
+        发送编译指令并将返回的编译成功的 kernel 二进制结果装载到当前隔离空间 (isolate) 中.
           ```c++
           ...
               uint8_t* application_kernel_buffer = NULL;
@@ -139,6 +146,17 @@
               dfe.CompileAndReadScript(script_uri, &application_kernel_buffer,
                                       &application_kernel_buffer_size, error, exit_code,
                                       resolved_packages_config);
+              ...
+              isolate_data->SetKernelBufferNewlyOwned(application_kernel_buffer,
+                                            application_kernel_buffer_size);
+              kernel_buffer = application_kernel_buffer;
+              kernel_buffer_size = application_kernel_buffer_size;
+            }
+            if (kernel_buffer != NULL) {
+              ...
+              result = Dart_LoadScriptFromKernel(kernel_buffer, kernel_buffer_size);
+              ...
+            }
           ```
           - DFE::CompileAndReadScript (sdk/runtime/bin/dfe.cc)
             ```c++
@@ -161,17 +179,39 @@
                   ```c++
                     Dart_Port kernel_port = WaitForKernelPort();
                     ...
-                      KernelCompilationRequest request;
-                      return request.SendAndWaitForResponse(
-                          kCompileTag, kernel_port, script_uri, platform_kernel,
-                          platform_kernel_size, source_file_count, source_files,
-                          incremental_compile, package_config, multiroot_filepaths,
-                          multiroot_scheme, experimental_flags_);
+                    KernelCompilationRequest request;
+                    return request.SendAndWaitForResponse(
+                        kCompileTag, kernel_port, script_uri, platform_kernel,
+                        platform_kernel_size, source_file_count, source_files,
+                        incremental_compile, package_config, multiroot_filepaths,
+                        multiroot_scheme, experimental_flags_);
                   ```
                   - KernelIsolate::WaitForKernelPort (sdk/runtime/vm/kernel_isolate.cc)
                   详见第 1 部分 kernel-service 启动时如何设置 dart::KernelIsolate::kernel_port_ 通信端口的.
                     ```c++
                       return kernel_port_;
                     ```
+      ```c++
+      ...
+        Dart_EnterIsolate(isolate);
+      ...
+          Dart_Handle root_lib = Dart_RootLibrary();
+      ...
+          Dart_Handle main_closure =
+              Dart_GetField(root_lib, Dart_NewStringFromCString("main"));
+      ...
+          const intptr_t kNumIsolateArgs = 2;
+          Dart_Handle isolate_args[kNumIsolateArgs];
+          isolate_args[0] = main_closure;                        // entryPoint
+          isolate_args[1] = CreateRuntimeOptions(dart_options);  // args
+
+          Dart_Handle isolate_lib =
+              Dart_LookupLibrary(Dart_NewStringFromCString("dart:isolate"));
+          result =
+              Dart_Invoke(isolate_lib, Dart_NewStringFromCString("_startMainIsolate"),
+                          kNumIsolateArgs, isolate_args);
+      ...
+          result = Dart_RunLoop();
+      ```
 
 
